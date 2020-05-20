@@ -116,7 +116,8 @@ def _push_pull(tensor, scope='', name=None):
     """
     if name is None and not _executing_eagerly():
         name = 'BytePSPushPull_%s' % _normalize_name(tensor.name)
-    if scope == '' and not _executing_eagerly():
+    # if scope == '' and not _executing_eagerly():
+    if not _executing_eagerly():
         if 'v1' in dir(tf.compat):
             scope = tf.compat.v1.get_default_graph().get_name_scope()
         else:

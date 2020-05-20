@@ -43,32 +43,45 @@ from tensorflow.python.ops import collective_ops
 from tensorflow.python.platform import tf_logging as logging
 from tensorflow.python.util.tf_export import tf_export
 
-def _normalize_name(name):
-    """Normalizes operation name to TensorFlow rules."""
-    return re.sub('[^a-zA-Z0-9_]', '_', name)
+from tensorflow.python.distribute import collective_all_reduce_strategy
+from byteps.tensorflow.util import _executing_eagerly
+import re
+import os
+import ctypes
+import tensorflow as tf
+from byteps.tensorflow.ops import broadcast, _push_pull
 
-def _push_pull(op, tensor, scope='', name=None):
-    """An op which sums an input tensor over all the BytePS processes.
-    The reduction operation is keyed by the name of the op. The tensor type and
-    shape must be the same on all BytePS processes for a given name. The reduction
-    will not start until all processes are ready to send and receive the tensor.
-    Returns:
-      A tensor of the same shape and type as `tensor`, summed across all
-      processes.
-    """
-    if name is None and not _executing_eagerly():
-        name = 'BytePSPushPull_%s' % _normalize_name(tensor.name)
-    if scope == '' and not _executing_eagerly():
-        if 'v1' in dir(tf.compat):
-            scope = tf.compat.v1.get_default_graph().get_name_scope()
-        else:
-            scope = tf.get_default_graph().get_name_scope()
-        if scope != '':
-            scope += '/'
-    full_name = scope + name
-    full_name = full_name.encode("ascii")
-    TF_LIB_CTYPES.byteps_tensorflow_declare_tensor(ctypes.c_char_p(full_name))
-    return C_LIB.byteps_push_pull(tensor, name=name)
+# dll_path = os.path.join(os.path.dirname(__file__),
+#                         'c_lib' + get_ext_suffix())
+# TF_LIB_CTYPES = ctypes.CDLL(dll_path, ctypes.RTLD_GLOBAL)
+#
+# def _normalize_name(name):
+#     """Normalizes operation name to TensorFlow rules."""
+#     return re.sub('[^a-zA-Z0-9_]', '_', name)
+#
+# def _push_pull(op, tensor, scope='', name=None):
+#     """An op which sums an input tensor over all the BytePS processes.
+#     The reduction operation is keyed by the name of the op. The tensor type and
+#     shape must be the same on all BytePS processes for a given name. The reduction
+#     will not start until all processes are ready to send and receive the tensor.
+#     Returns:
+#       A tensor of the same shape and type as `tensor`, summed across all
+#       processes.
+#     """
+#     if name is None and not _executing_eagerly():
+#         name = 'BytePSPushPull_%s' % _normalize_name(tensor.name)
+#     if scope == '' and not _executing_eagerly():
+#         if 'v1' in dir(tf.compat):
+#             scope = tf.compat.v1.get_default_graph().get_name_scope()
+#         else:
+#             scope = tf.get_default_graph().get_name_scope()
+#         if scope != '':
+#             scope += '/'
+#     full_name = scope + name
+#     full_name = full_name.encode("ascii")
+#     TF_LIB_CTYPES.byteps_tensorflow_declare_tensor(ctypes.c_char_p(full_name))
+#     print("xxxxxxxxxx inside _push_pull")
+#     return C_LIB.byteps_push_pull(tensor, name=name)
 
 # TODO(yuefengz): support in-graph replication.
 @tf_export("byteps.MultiWorkerMirroredStrategy", v1=[])
@@ -173,7 +186,7 @@ class CollectiveAllReduceStrategyV1(distribute_lib.StrategyV1):
       cluster_resolver=None):
     """Initializes the object."""
     super(CollectiveAllReduceStrategyV1, self).__init__(
-        CollectiveAllReduceExtended(
+        collective_all_reduce_strategy.CollectiveAllReduceExtended(
             self,
             communication=communication,
             cluster_resolver=cluster_resolver))
@@ -186,17 +199,18 @@ class CollectiveAllReduceStrategyV1(distribute_lib.StrategyV1):
         "num_gpu_per_worker").set(self.extended._num_gpus_per_worker)
 
 
-class MyCollectiveAllReduceExtended(CollectiveAllReduceExtended):
+class MyCollectiveAllReduceExtended(collective_all_reduce_strategy.CollectiveAllReduceExtended):
   """Implementation of CollectiveAllReduceStrategy."""
 
   def __init__(self,
                container_strategy,
                communication,
                cluster_resolver):
-    super(MyCollectiveAllReduceExtended, self).__init__
+    # print("xxxxxxxxxxxx init")
+    super(MyCollectiveAllReduceExtended, self).__init__(
                container_strategy,
                communication,
-               cluster_resolver):
+               cluster_resolver)
 
   def _initialize_strategy(self, cluster_resolver):
     if cluster_resolver.cluster_spec().as_dict():
@@ -204,7 +218,8 @@ class MyCollectiveAllReduceExtended(CollectiveAllReduceExtended):
     else:
       self._initialize_local(cluster_resolver)
 
-  def _reduce_to(self, reduce_op, value, destinations, experimental_hints):
+  def _reduce_to(self, reduce_op, value, destinations):
+    print("xxxxxxxxxxxx inside _reduce_to here")
     if (isinstance(value, values.Mirrored) and
         reduce_op == reduce_util.ReduceOp.MEAN):
       return value
@@ -218,14 +233,17 @@ class MyCollectiveAllReduceExtended(CollectiveAllReduceExtended):
     # collective ops.
     if (not isinstance(value, values.DistributedValues) and
         self._num_workers == 1):
+      print(type(value), "_num_workers ", self._num_workers)
       # This function handles reducing values that are not PerReplica or
       # Mirrored values. For example, the same value could be present on all
       # replicas in which case `value` would be a single value or value could
       # be 0.
+      print("xxxxxx before reduce_non_distributed_value")
       return cross_device_ops_lib.reduce_non_distributed_value(
-          reduce_op, value, destinations, len(self.worker_devices))
+          reduce_op, self._device_map, value, destinations)
     # replace this reduce() call to push_pull
-    return _push_pull(reduce_op, value)
+    # return _push_pull(reduce_op, value)
+    return _push_pull(value)
 
 # destinations: the reduction destinations.
 #    return self._get_cross_device_ops().reduce(
