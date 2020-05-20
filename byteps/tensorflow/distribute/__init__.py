@@ -1,0 +1,3 @@
+#from . multiWorkerMirrorredStrategy import MultiWorkerMirroredStrategy
+from . multiWorkerMirrorredStrategy import CollectiveAllReduceStrategy as MultiWorkerMirroredStrategy
+from . mirrored_strategy import MyMirroredStrategy
