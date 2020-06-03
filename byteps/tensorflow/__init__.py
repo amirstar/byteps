@@ -16,9 +16,8 @@
 # ==============================================================================
 # pylint: disable=g-short-docstring-punctuation
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+import os
+import warnings
 
 import os
 import warnings
@@ -277,6 +276,66 @@ if _LegacyOptimizer is not None:
         def variables(self, *args, **kwargs):
             """Calls this same method on the underlying optimizer."""
             return self._optimizer.variables(*args, **kwargs)
+#x2682marklinexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+def DistributedOptimizer(optimizer, name=None, use_locking=False, device_dense='',
+                         device_sparse='', compression=Compression.none,
+                         sparse_as_dense=False, backward_passes_per_step=1,
+                         op=Average):
+    """Construct a new DistributedOptimizer, which uses another optimizer
+    under the hood for computing single-process gradient values and
+    applying gradient updates after the gradient values have been combined
+    across all the BytePS ranks.
+
+    Args:
+      optimizer:
+        Optimizer to use for computing gradients and applying updates.
+      name:
+        Optional name prefix for the operations created when applying
+        gradients. Defaults to "Distributed" followed by the provided
+        optimizer type.
+      use_locking:
+        Whether to use locking when updating variables.
+        See Optimizer.__init__ for more info.
+      device_dense:
+        Device to be used for dense tensors. Uses GPU by default.
+      device_sparse:
+        Device to be used for sparse tensors. Uses GPU by default.
+      compression:
+        Compression algorithm used during push_pull to reduce the amount
+        of data sent during each parameter update step.  Defaults to
+        not using compression.
+      sparse_as_dense:
+        Treat all sparse gradients as dense tensors.  This can help improve
+        performance and memory utilization if the original sparse gradient
+        has high density.  Defaults to false.
+      backward_passes_per_step:
+        Number of backward passes to perform before calling bps.push_pull
+        This allows accumulating updates over multiple mini-batches before
+        reducing and applying them.
+      op:
+        The reduction operation to use when combining gradients across
+        different ranks.
+    """
+    if isinstance(optimizer, _LegacyOptimizer):
+        if op == Adasum:
+            raise ValueError('op == Adasum is not supported yet with ')
+        else:
+            if backward_passes_per_step > 1:
+                raise ValueError('backward_passes_per_step>1 is not supported yet with '
+                                 'op != Adasum')
+            return _DistributedOptimizer(optimizer, name, use_locking, device_dense,
+                                        device_sparse, compression, sparse_as_dense, op)
+    elif isinstance(optimizer, tf.keras.optimizers.Optimizer):
+        if op == Adasum:
+            raise ValueError('op == Adasum is not supported yet with Keras')
+        if backward_passes_per_step > 1:
+            raise ValueError('backward_passes_per_step > 1 is not supported yet with Keras')
+        import byteps.tensorflow.keras as bps_k
+        return bps_k.DistributedOptimizer(optimizer, name, device_dense, device_sparse,
+                                          compression, sparse_as_dense)
+    else:
+        raise ValueError('Provided optimizer doesn\'t inherit from either legacy '
+                         'TensorFlow or Keras optimizer: %s' % optimizer)
 
 def DistributedOptimizer(optimizer, name=None, use_locking=False, device_dense='',
                          device_sparse='', compression=Compression.none,

@@ -45,6 +45,7 @@ import tensorflow.python.distribute.cross_device_ops as tf_cross_device_ops
 from inspect import currentframe, getframeinfo
 
 from byteps.tensorflow.ops import broadcast, _push_pull
+from byteps.tensorflow import local_rank, size
 
 def check_destinations(destinations):
   """Checks whether `destinations` is not empty.
@@ -658,17 +659,21 @@ class BytepsCrossDeviceOps(tf_cross_device_ops.CrossDeviceOps):
         logging.INFO, "Using byteps push pull to aggregate values", 1)
     reduced = _simple_reduce(per_replica_value, reduce_to_device,
                              self.accumulation_fn, reduce_op)
-    reduced = self.broadcast(reduced, destinations)
-    tf.print("before pushpull, tensor: ", reduced.name, " content ", reduced)
-    reduced = _push_pull(reduced)
-    tf.print("after pushpull, tensor: ", reduced.name, " content ", reduced)
-    frameinfo = getframeinfo(currentframe())
-    print("xxxxxx ", frameinfo.filename, ":", frameinfo.lineno, "reduce_op ",
-            reduce_op)
-    tensor = tf.range(10)
-    tf.print("before pushpull, test tensor: ", tensor.name, " content ", tensor)
-    tensor = _push_pull(tensor)
-    tf.print(" after pushpull, test tensor: ", tensor.name, " content ", tensor)
+    my_rank = local_rank()
+    # reduced = self.broadcast(reduced, destinations)
+    # tf.print("my_local_rank: ", my_rank, "before pushpull, tensor: ", reduced.name, "tensor.device: ", reduced.device, " content ", reduced)
+    if size() > 1:
+        reduced = _push_pull(reduced)
+    # tf.print("my_local_rank: ", my_rank, "after pushpull, tensor: ", reduced.name, "tensor.device: ", reduced.device, " content ", reduced)
+    # frameinfo = getframeinfo(currentframe())
+    # print("xxxxxx ", frameinfo.filename, ":", frameinfo.lineno, "reduce_op ", reduce_op)
+    physical_gpus = tf.config.list_physical_devices('GPU')
+    # tf.print("my_local_rank: ", local_rank(), "list of GPUs: \n", physical_gpus)
+    # with tf.device("GPU:" + str(local_rank())):
+    #     tensor = tf.range(10)
+    #     tf.print("before pushpull, test tensor: ", tensor.name, tensor.device, " content ", tensor)
+    #     # tensor = _push_pull(tensor)
+    #     tf.print(" after pushpull, test tensor: ", tensor.name, tensor.device, " content ", tensor)
     return reduced
 
     # with ops.device(reduce_to_device):

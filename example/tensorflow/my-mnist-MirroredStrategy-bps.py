@@ -5,6 +5,7 @@ import os
 import sys
 import argparse
 import byteps.tensorflow as bps
+# import byteps.tensorflow.keras as bps
 
 parser = argparse.ArgumentParser(description='TensorFlow Synthetic Benchmark',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -94,5 +95,5 @@ with strategy.scope():
 # Keras' `model.fit()` trains the model with specified number of epochs and
 # number of steps per epoch. Note that the numbers here are for demonstration
 # purposes only and may not sufficiently produce a model with good quality.
-multi_worker_model.fit(multi_worker_dataset, epochs=10, steps_per_epoch=70)
+multi_worker_model.fit(multi_worker_dataset, epochs=100, steps_per_epoch=70)
 print("xxxxxxxxxxxxxxxxxxxxxxxxx all done")
