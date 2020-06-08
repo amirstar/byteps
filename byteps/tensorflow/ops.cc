@@ -175,6 +175,7 @@ class BytePSPushPullOp : public ::tensorflow::AsyncOpKernel {
 
   void ComputeAsync(::tensorflow::OpKernelContext* context,
                     DoneCallback done) override {
+    // std::cout << "inside PushPull kernel" << std::endl;
     OP_REQUIRES_OK_ASYNC(context, ConvertStatus(common::CheckInitialized()),
                          done);
 

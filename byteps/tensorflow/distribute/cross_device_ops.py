@@ -664,6 +664,8 @@ class BytepsCrossDeviceOps(tf_cross_device_ops.CrossDeviceOps):
     # tf.print("my_local_rank: ", my_rank, "before pushpull, tensor: ", reduced.name, "tensor.device: ", reduced.device, " content ", reduced)
     if size() > 1:
         reduced = _push_pull(reduced)
+        frameinfo = getframeinfo(currentframe())
+        print("xxxxxx ", frameinfo.filename, ":", frameinfo.lineno, "called_push_pull")
     # tf.print("my_local_rank: ", my_rank, "after pushpull, tensor: ", reduced.name, "tensor.device: ", reduced.device, " content ", reduced)
     # frameinfo = getframeinfo(currentframe())
     # print("xxxxxx ", frameinfo.filename, ":", frameinfo.lineno, "reduce_op ", reduce_op)
